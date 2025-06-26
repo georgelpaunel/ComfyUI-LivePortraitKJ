@@ -1,24 +1,77 @@
-name: Publish to Comfy registry
+name: Streamlink
+
 on:
+  schedule:
+    - cron: "*/10 * * * *"
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
-    paths:
-      - "pyproject.toml"
 
 jobs:
-  publish-node:
-    name: Publish Custom Node to registry
+  streamlink-job:
     runs-on: ubuntu-latest
-    # if this is a forked repository. Skipping the workflow.
-    if: github.event.repository.fork == false 
     steps:
-      - name: Check out code
+      - name: Checkout code
         uses: actions/checkout@v4
-      - name: Publish Custom Node
-        uses: Comfy-Org/publish-node-action@main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          ## Add your own personal access token to your Github Repository secrets and reference it here.
-          personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+          python-version: '3.13'
+
+      - name: Install Streamlink
+        run: |
+          pip install streamlink
+
+      - name: check stream
+        id: wait_stream_offline1
+        run: |
+          STREAM_URL="https://kick.com/brutalles"
+          echo "Checking stream status for $STREAM_URL"
+          set +e
+          if true; then
+            STATUS_MSG=$(streamlink --json $STREAM_URL worst 2>&1)
+            if echo "$STATUS_MSG" | grep -q "No playable streams found"; then
+              echo "Stream is offline."
+            else
+              OUTFILE="/tmp/stream.ts"
+              streamlink $STREAM_URL worst -o "$OUTFILE" > streamlink.log 2>&1 &
+              STREAMLINK_PID=$!
+              echo "Started streamlink with PID $STREAMLINK_PID"
+              wait $STREAMLINK_PID
+              EXIT_CODE=$?
+              echo "Streamlink exited with code $EXIT_CODE"
+              cat streamlink.log
+              echo "$STATUS_MSG"
+              echo "Stream is still online. Checking again in 60 seconds..."
+              sleep 60
+            fi
+          fi
+          set -e
+          
+      - name: check stream
+        id: wait_stream_offline
+        run: |
+          STREAM_URL="https://twitch.tv/brutalles"
+          echo "Checking stream status for $STREAM_URL"
+          set +e
+          if true; then
+            STATUS_MSG=$(streamlink --json $STREAM_URL worst 2>&1)
+            if echo "$STATUS_MSG" | grep -q "No playable streams found"; then
+              echo "Stream is offline."
+            else
+              OUTFILE="/tmp/stream.ts"
+              streamlink $STREAM_URL worst -o "$OUTFILE" > streamlink.log 2>&1 &
+              STREAMLINK_PID=$!
+              echo "Started streamlink with PID $STREAMLINK_PID"
+              wait $STREAMLINK_PID
+              EXIT_CODE=$?
+              echo "Streamlink exited with code $EXIT_CODE"
+              cat streamlink.log
+              echo "$STATUS_MSG"
+              echo "Stream is still online. Checking again in 60 seconds..."
+              sleep 60
+            fi
+          fi
+          set -e
+
+      
+
